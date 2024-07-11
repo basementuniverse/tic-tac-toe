@@ -1,0 +1,243 @@
+<style>
+
+button {
+  width: 100px;
+  height: 100px;
+  margin: 10px;
+  font: bold 30px sans-serif;
+}
+
+#container.win button {
+  background-color: green;
+}
+
+#container.lose button {
+  background-color: red;
+}
+
+#container.draw button {
+  opacity: 0.5;
+}
+
+</style>
+
+<div id="container">
+  <div>
+    <button id="cell-0" onclick="javascript:handleInput([0, 0])">-</button>
+    <button id="cell-1" onclick="javascript:handleInput([1, 0])">-</button>
+    <button id="cell-2" onclick="javascript:handleInput([2, 0])">-</button>
+  </div>
+  <div>
+    <button id="cell-3" onclick="javascript:handleInput([0, 1])">-</button>
+    <button id="cell-4" onclick="javascript:handleInput([1, 1])">-</button>
+    <button id="cell-5" onclick="javascript:handleInput([2, 1])">-</button>
+  </div>
+  <div>
+    <button id="cell-6" onclick="javascript:handleInput([0, 2])">-</button>
+    <button id="cell-7" onclick="javascript:handleInput([1, 2])">-</button>
+    <button id="cell-8" onclick="javascript:handleInput([2, 2])">-</button>
+  </div>
+</div>
+
+<script>
+
+// 0 1 2
+// 3 4 5
+// 6 7 8
+
+const PLAYER = 'x';
+const COMPUTER = 'o';
+let STATE = emptyState();
+
+const i2p = i => [i % 3, Math.floor(i / 3)];
+const p2i = p => p[1] * 3 + p[0];
+
+// Return an empty state
+function emptyState() {
+  return '---------';
+}
+
+// Get a list of adjacent states for a given state and player
+// Returns an array of tuples containing:
+// - the adjacent state
+// - the move position
+function nextStates(state, player) {
+  const moves = [];
+  for (let i = 0; i < state.length; i++) {
+    if (state[i] !== '-') {
+      continue;
+    }
+
+    moves.push([
+      mutateState(state, player, i),
+      i2p(i),
+    ]);
+  }
+
+  return moves;
+}
+
+// Make a move and update the given state accordingly
+function mutateState(state, player, index) {
+  return `${state.slice(0, index)}${player}${state.slice(index + 1)}`;
+}
+
+// Check if a player has won the game in a given state
+// Returns the winning player
+// Returns false if the game is over with no winner (draw)
+// Returns null if there is no winner but the game isn't over yet
+function winner(state) {
+  if (findWinningLine(state, 'x')) {
+    return 'x';
+  }
+
+  if (findWinningLine(state, 'o')) {
+    return 'o';
+  }
+
+  if (state.indexOf('-') === -1) {
+    return false;
+  }
+
+  return null;
+}
+
+// Check if a state contains a horizontal/vertical/diagonal line of moves
+function findWinningLine(state, player) {
+  const stateToCheck = state.replaceAll(player, 'p');
+  return (
+    /^ppp......$/.test(stateToCheck) ||
+    /^...ppp...$/.test(stateToCheck) ||
+    /^......ppp$/.test(stateToCheck) ||
+    /^p..p..p..$/.test(stateToCheck) ||
+    /^.p..p..p.$/.test(stateToCheck) ||
+    /^..p..p..p$/.test(stateToCheck) ||
+    /^p...p...p$/.test(stateToCheck) ||
+    /^..p.p.p..$/.test(stateToCheck)
+  );
+}
+
+// Make a move and return a tuple containing:
+// - the resulting mutated state
+// - true if the player has won, false if the computer has won, null otherwise
+function move(state, player, position) {
+  const i = p2i(position);
+  const newState = mutateState(state, player, i);
+
+  return [newState, winner(newState)];
+}
+
+// Run minimax from the given state to the end of the game
+// Returns a tuple containing:
+// - the best move's score
+// - a position that the maximising player should play
+function minimax(state, player) {
+  // Check if we've reached a terminal state
+  const win = winner(state);
+  if (win !== null) {
+    // Game is a draw
+    if (win === false) {
+      return [0, null];
+    }
+
+    // PLAYER has won
+    if (win === PLAYER) {
+      return [1, null];
+    }
+
+    // COMPUTER has won
+    if (win === COMPUTER) {
+      return [-1, null];
+    }
+
+    // We should never reach here...
+  }
+
+  let bestScore = 0;
+  let bestPosition = null;
+
+  if (player === PLAYER) {
+    bestScore = -Infinity;
+    for (const [nextState, nextPosition] of nextStates(state, PLAYER)) {
+      const [score] = minimax(nextState, COMPUTER);
+      if (score > bestScore) {
+        bestScore = score;
+        bestPosition = nextPosition;
+      }
+    }
+  }
+
+  if (player === COMPUTER) {
+    bestScore = Infinity;
+    for (const [nextState, nextPosition] of nextStates(state, COMPUTER)) {
+      const [score] = minimax(nextState, PLAYER);
+      if (score < bestScore) {
+        bestScore = score;
+        bestPosition = nextPosition;
+      }
+    }
+  }
+
+  return [bestScore, bestPosition];
+}
+
+// Dump a state into the console
+function dump(state) {
+  const format = (s, r) => s.slice(r * 3, r * 3 + 3).split('').join(' ');
+  console.log(`
+    ${format(state, 0)}\n
+    ${format(state, 1)}\n
+    ${format(state, 2)}\n
+  `);
+}
+
+// Render a state in the DOM
+const container = document.querySelector('#container');
+const cellButtons = [
+  document.querySelector('button#cell-0'),
+  document.querySelector('button#cell-1'),
+  document.querySelector('button#cell-2'),
+  document.querySelector('button#cell-3'),
+  document.querySelector('button#cell-4'),
+  document.querySelector('button#cell-5'),
+  document.querySelector('button#cell-6'),
+  document.querySelector('button#cell-7'),
+  document.querySelector('button#cell-8'),
+];
+function render(state, win = null) {
+  for (const [i, button] of cellButtons.entries()) {
+    button.innerText = state[i];
+  }
+
+  if (win === PLAYER) {
+    container.className = 'win';
+  }
+
+  if (win === COMPUTER) {
+    container.className = 'lose';
+  }
+
+  if (win === false) {
+    container.className = 'draw';
+  }
+}
+render(STATE);
+
+// Handle a button being clicked
+function handleInput(position) {
+  let result;
+  [STATE, result] = move(STATE, PLAYER, position);
+
+  render(STATE, result);
+
+  if (result === null) {
+    const [, computerPosition] = minimax(STATE, COMPUTER);
+
+    setTimeout(() => {
+      [STATE, result] = move(STATE, COMPUTER, computerPosition);
+      render(STATE, result);
+    }, 500);
+  }
+}
+
+</script>
